@@ -1,7 +1,55 @@
 'use client';
-import { useEffect, useState } from 'react';
 
-type Data={summary:{mastered:number;developing:number;needsReview:number;averageMastery:number};weakConcepts:{id:string;name:string;mastery:number;lessonTitle:string;priority:string}[];recommendations:{id:string;title:string;reason:string;href:string;type:string}[]};
-const fallback:Data={summary:{mastered:6,developing:4,needsReview:2,averageMastery:74},weakConcepts:[{id:'1',name:'المقام المشترك',mastery:48,lessonTitle:'جمع الكسور',priority:'high'},{id:'2',name:'التبسيط',mastery:61,lessonTitle:'الكسور المتكافئة',priority:'medium'}],recommendations:[{id:'r1',title:'تدريب على المقام المشترك',reason:'مفهوم يحتاج إلى مراجعة قبل الانتقال للدرس التالي.',href:'/learning',type:'practice'},{id:'r2',title:'أعد اختبار الكسور المتكافئة',reason:'رفع الإتقان فوق 80% سيفتح لك مسارًا أكثر تقدمًا.',href:'/exams',type:'assessment'}]};
-export default function AdaptivePage(){const [data,setData]=useState(fallback);useEffect(()=>{fetch('/api/adaptive').then(r=>r.json()).then(setData).catch(()=>{});},[]);const s=data.summary;return <main dir="rtl" style={{maxWidth:1150,margin:'30px auto',padding:20}}><header><h1>مساري الذكي 🧠</h1><p style={{color:'#64748b'}}>النظام يحدد المفاهيم التي تحتاج إلى تدريب ويقترح الخطوة التالية بناءً على أدائك.</p></header><section className="analytics-grid"><Card t="متوسط الإتقان" v={`${s.averageMastery}%`}/><Card t="متقن" v={String(s.mastered)}/><Card t="قيد التطوير" v={String(s.developing)}/><Card t="يحتاج مراجعة" v={String(s.needsReview)}/></section><section style={{marginTop:28}}><h2>مفاهيم تحتاج مراجعة</h2><div style={{display:'grid',gap:12}}>{data.weakConcepts.map(c=><div key={c.id} style={{padding:18,border:'1px solid #e2e8f0',borderRadius:16}}><div style={{display:'flex',justifyContent:'space-between'}}><div><b>{c.name}</b><div style={{color:'#64748b',marginTop:5}}>{c.lessonTitle}</div></div><strong>{c.mastery}%</strong></div><div style={{height:9,background:'#e2e8f0',borderRadius:99,marginTop:12}}><div style={{height:9,width:`${c.mastery}%`,background:'#0f172a',borderRadius:99}}/></div><small>{c.priority==='high'?'أولوية عالية':'مراجعة مقترحة'}</small></div>)}</div></section><section style={{marginTop:28}}><h2>الخطوة التالية المقترحة</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12}}>{data.recommendations.map(r=><a href={r.href} key={r.id} style={{padding:20,border:'1px solid #e2e8f0',borderRadius:16,textDecoration:'none',color:'inherit'}}><b>{r.title}</b><p style={{color:'#64748b',lineHeight:1.7}}>{r.reason}</p><span>ابدأ الآن ←</span></a>)}</div></section></main>}
-function Card({t,v}:{t:string;v:string}){return <div style={{padding:18,border:'1px solid #e2e8f0',borderRadius:16,background:'#fff'}}><div style={{color:'#64748b'}}>{t}</div><strong style={{fontSize:28}}>{v}</strong></div>}
+import { useState } from 'react';
+
+export default function AdminPage() {
+  const [status, setStatus] = useState('');
+  const [counts, setCounts] = useState<any>(null);
+
+  async function loadCounts() {
+    setStatus('جاري الاتصال...');
+    const res = await fetch('/api/curriculum');
+    const data = await res.json();
+    if (data.ok) {
+      setCounts(data.counts);
+      setStatus('تم الاتصال بقاعدة البيانات.');
+    } else {
+      setStatus(data.error ?? 'تعذر الاتصال.');
+    }
+  }
+
+  async function importOfficial() {
+    setStatus('جاري استيراد الخطة الرسمية...');
+    const curriculum = await fetch('/data/official-curriculum-2026-2027.json').then(r => r.json());
+    const res = await fetch('/api/curriculum/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(curriculum),
+    });
+    const data = await res.json();
+    setStatus(data.ok
+      ? `تم الاستيراد: ${data.gradeCount} صفوف، ${data.subjectCount} مواد، ${data.relationCount} ارتباطات.`
+      : (data.error ?? 'فشل الاستيراد.'));
+  }
+
+  return (
+    <main dir="rtl" style={{maxWidth: 1000, margin: '40px auto', padding: 24}}>
+      <h1>لوحة إدارة MIS-EGYPT</h1>
+      <p>إدارة الخطة الدراسية واستيراد بيانات المنهج الرسمية.</p>
+      <div style={{display:'flex', gap:12, flexWrap:'wrap', margin:'24px 0'}}>
+        <button onClick={loadCounts}>فحص قاعدة البيانات</button>
+        <button onClick={importOfficial}>استيراد خطة 2026–2027</button>
+      </div>
+      {status && <p>{status}</p>}
+      {counts && (
+        <section style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12}}>
+          {Object.entries(counts).map(([key, value]) => (
+            <div key={key} style={{padding:16, border:'1px solid #ddd', borderRadius:12}}>
+              <strong>{key}</strong><div style={{fontSize:28}}>{String(value)}</div>
+            </div>
+          ))}
+        </section>
+      )}
+    </main>
+  );
+}
